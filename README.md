@@ -11,7 +11,7 @@ This project models the structural collapse ("death spiral") of a private health
 
 ## 2. Theoretical Framework
 
-### Microeconomic Foundation (CB2)
+### Microeconomic Foundation 
 Following Akerlof (1970) and Rothschild & Stiglitz (1976), when an insurer cannot observe individual risk profiles, it charges a pooled premium $P_t$. Risk-averse consumers purchase coverage only if the certain loss of the premium provides greater utility than retaining the underlying risk:
 
 $$U(W - P_t) \ge \mathbb{E}[U(W - S_i)]$$
@@ -20,14 +20,14 @@ We formalize consumer drop-out via an empirical reservation price (Willingness t
 
 $$\text{Lapse Rate}_{i,t} = \min\left(1.0, \; \epsilon_i \cdot \frac{\max(0, P_t - \text{WTP}_i)}{\text{WTP}_i}\right)$$
 
-### Aggregate Claim Process (CS1)
+### Aggregate Claim Process 
 For an active cohort $k \in \{\text{Low}, \text{High}\}$, aggregate annual losses $S_k$ are modeled as a collective risk process:
 
 $$S_k = \sum_{j=1}^{N_k} X_j, \quad N_k \sim \text{Poisson}(\lambda_k), \quad X_j \sim \text{Gamma}(\alpha, \beta)$$
 
 Where $\lambda_{\text{Low}} = 0.10$, $\lambda_{\text{High}} = 0.65$, and mean severity $\mathbb{E}[X] = \alpha \beta = \$1,200$.
 
-### Actuarial Repricing Engine (CM1)
+### Actuarial Repricing Engine 
 At each renewal $t+1$, the insurer reprices the annual office premium $P_{t+1}$ using the Equivalence Principle, incorporating both per-policy overhead expenses and proportional loadings:
 
 $$P_{t+1} = \frac{\bar{S}_{t+1} + e_{\text{fixed}}}{1 - e_{\text{variable}} - m}$$
