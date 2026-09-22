@@ -1,0 +1,115 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+# 1. PARAMETERS
+N_LOW_0 = 700          # Healthy people
+N_HIGH_0 = 300         # High-risk people
+LAMBDA_LOW = 0.10      # Low-risk claim chance per year
+LAMBDA_HIGH = 0.65     # High-risk claim chance per year
+MEAN_SEVERITY = 1200.0 # Average claim size ($)
+GAMMA_SHAPE = 2.0
+GAMMA_SCALE = MEAN_SEVERITY / GAMMA_SHAPE
+
+FIXED_EXPENSE = 25.0
+VAR_EXPENSE_RATIO = 0.06
+TARGET_PROFIT_MARGIN = 0.05
+
+# Max price each group will tolerate
+WTP_LOW = (LAMBDA_LOW * MEAN_SEVERITY) * 1.65
+WTP_HIGH = (LAMBDA_HIGH * MEAN_SEVERITY) * 1.30
+ELASTICITY_LOW = 2.0
+ELASTICITY_HIGH = 0.8
+CYCLES = 6
+
+def simulate_claims(n_individuals, freq_lambda, shape, scale):
+    if n_individuals <= 0:
+        return 0, 0.0
+    claim_counts = np.random.poisson(freq_lambda, size=n_individuals)
+    total_claims = int(np.sum(claim_counts))
+    if total_claims == 0:
+        return 0, 0.0
+    claim_severities = np.random.gamma(shape, scale, size=total_claims)
+    return total_claims, float(np.sum(claim_severities))
+
+def calculate_office_premium(avg_expected_loss, fixed_exp, var_ratio, profit_margin):
+    denominator = 1.0 - var_ratio - profit_margin
+    return (avg_expected_loss + fixed_exp) / denominator
+
+def calculate_lapse_rate(premium, wtp, elasticity):
+    if premium <= wtp:
+        return 0.0
+    excess_ratio = (premium - wtp) / wtp
+    return max(0.0, min(1.0, elasticity * excess_ratio))
+
+# 2. RUN SIMULATION
+history = []
+n_low, n_high = N_LOW_0, N_HIGH_0
+
+pooled_loss = ((n_low * LAMBDA_LOW + n_high * LAMBDA_HIGH) * MEAN_SEVERITY) / (n_low + n_high)
+current_premium = calculate_office_premium(pooled_loss, FIXED_EXPENSE, VAR_EXPENSE_RATIO, TARGET_PROFIT_MARGIN)
+
+for cycle in range(CYCLES):
+    total_pop = n_low + n_high
+    prop_high = (n_high / total_pop) * 100.0 if total_pop > 0 else 0.0
+
+    claims_low, loss_low = simulate_claims(n_low, LAMBDA_LOW, GAMMA_SHAPE, GAMMA_SCALE)
+    claims_high, loss_high = simulate_claims(n_high, LAMBDA_HIGH, GAMMA_SHAPE, GAMMA_SCALE)
+    total_losses = loss_low + loss_high
+
+    history.append({
+        "Cycle": cycle,
+        "Low_Risk": n_low,
+        "High_Risk": n_high,
+        "Total_Policies": total_pop,
+        "High_Risk_Pct": round(prop_high, 1),
+        "Premium": round(current_premium, 2),
+        "Total_Losses": round(total_losses, 2)
+    })
+
+    if total_pop == 0 or cycle == CYCLES - 1:
+        break
+
+    lapse_low = calculate_lapse_rate(current_premium, WTP_LOW, ELASTICITY_LOW)
+    lapse_high = calculate_lapse_rate(current_premium, WTP_HIGH, ELASTICITY_HIGH)
+
+    n_low = int(round(n_low * (1.0 - lapse_low)))
+    n_high = int(round(n_high * (1.0 - lapse_high)))
+
+    next_pop = n_low + n_high
+    if next_pop > 0:
+        next_loss = ((n_low * LAMBDA_LOW + n_high * LAMBDA_HIGH) * MEAN_SEVERITY) / next_pop
+        current_premium = calculate_office_premium(next_loss, FIXED_EXPENSE, VAR_EXPENSE_RATIO, TARGET_PROFIT_MARGIN)
+    else:
+        current_premium = 0.0
+
+# 3. SAVE RESULTS & CHART
+os.makedirs("results", exist_ok=True)
+df = pd.DataFrame(history)
+df.to_csv("results/death_spiral_simulation.csv", index=False)
+
+print("\n--- SIMULATION RESULTS ---")
+print(df.to_string(index=False))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.bar(df["Cycle"], df["Low_Risk"], label="Low Risk (Healthy)", color="#2b5c8f")
+ax1.bar(df["Cycle"], df["High_Risk"], bottom=df["Low_Risk"], label="High Risk", color="#d95f02")
+ax1.set_title("Pool Composition Over Time")
+ax1.set_xlabel("Year")
+ax1.set_ylabel("Number of People")
+ax1.legend()
+
+ax2.plot(df["Cycle"], df["Premium"], marker="o", color="#7570b3", linewidth=2)
+ax2.axhline(WTP_LOW, color="#2b5c8f", linestyle="--", label=f"Low-Risk Max WTP (${WTP_LOW:.0f})")
+ax2.set_title("Insurance Premium Escalation")
+ax2.set_xlabel("Year")
+ax2.set_ylabel("Annual Premium ($)")
+ax2.legend()
+
+plt.tight_layout()
+plt.savefig("results/death_spiral_dynamics.png", dpi=300)
+print("\nSuccess! Chart saved to: results/death_spiral_dynamics.png\n")
